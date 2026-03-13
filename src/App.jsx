@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 function getKST() {
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const pad = n => String(n).padStart(2, "0");
-  const days = ["월","화","수","목","금"];
+  const days = ["일","월","화","수","목","금","토"];
   const h = kst.getUTCHours();
   return {
     date:    `${kst.getUTCFullYear()}년 ${kst.getUTCMonth()+1}월 ${kst.getUTCDate()}일`,
@@ -21,11 +21,7 @@ async function claudeSearch(system, user, maxIter = 4) {
   for (let i = 0; i < maxIter; i++) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json",
-     "x-api-key": import.meta.env.VITE_ANTHROPIC_KEY,
-     "anthropic-version": "2023-06-01",
-     "anthropic-dangerous-direct-browser-access": "true"
-     },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 5000,
@@ -201,16 +197,27 @@ export default function App() {
   const timer = useRef(null);
   const kst = getKST();
 
-  // 앱 시작 시 저장된 브리핑 불러오기
+  // 앱 시작 시 저장된 브리핑 불러오기 (briefing.json → localStorage 순)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("briefing_cache");
-      if (saved) {
-        const { data: d, lastAt: t } = JSON.parse(saved);
-        setData(d);
-        setLastAt(t);
-      }
-    } catch(e) {}
+    async function loadCache() {
+      try {
+        // 1. 서버에 저장된 최신 브리핑 먼저 시도
+        const res = await fetch("/briefing.json?t=" + Date.now());
+        if (res.ok) {
+          const { data: d, lastAt: t } = await res.json();
+          setData(d); setLastAt(t); return;
+        }
+      } catch(e) {}
+      try {
+        // 2. 없으면 localStorage 사용
+        const saved = localStorage.getItem("briefing_cache");
+        if (saved) {
+          const { data: d, lastAt: t } = JSON.parse(saved);
+          setData(d); setLastAt(t);
+        }
+      } catch(e) {}
+    }
+    loadCache();
   }, []);
 
   async function run() {
